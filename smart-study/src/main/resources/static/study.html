@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartStudy AI 智能伴学</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #ecfeff 100%);
+      min-height: 100vh;
+      color: #1e293b;
+      line-height: 1.6;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* Toast */
+    #toast-container {
+      position: fixed; top: 20px; right: 20px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      padding: 14px 20px; border-radius: 12px; color: #fff;
+      font-size: 14px; font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      animation: toastIn 0.35s ease-out;
+      max-width: 380px;
+      backdrop-filter: blur(8px);
+    }
+    .toast-success { background: linear-gradient(135deg, #10b981, #059669); }
+    .toast-error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .toast-info { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .toast-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(60px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Loading */
+    .spinner {
+      display: inline-block; width: 20px; height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px; color: #6366f1; font-size: 15px; gap: 12px;
+    }
+    .loading-overlay .spinner {
+      width: 28px; height: 28px;
+      border-color: rgba(99,102,241,0.2);
+      border-top-color: #6366f1;
+    }
+
+    /* Auth */
+    .auth-container {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #3730a3 60%, #1e3a5f 100%);
+      position: relative; overflow: hidden;
+    }
+    .auth-container::before {
+      content: ''; position: absolute; width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+      top: -200px; right: -200px; border-radius: 50%;
+    }
+    .auth-container::after {
+      content: ''; position: absolute; width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(6,182,212,0.1) 0%, transparent 70%);
+      bottom: -150px; left: -150px; border-radius: 50%;
+    }
+    .auth-card {
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px; padding: 40px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+      position: relative; z-index: 1;
+      animation: cardFloat 0.6s ease-out;
+    }
+    @keyframes cardFloat {
+      from { opacity: 0; transform: translateY(30px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .auth-logo { text-align: center; margin-bottom: 32px; }
+    .auth-logo .icon { font-size: 48px; display: block; margin-bottom: 8px; }
+    .auth-logo h1 { color: #fff; font-size: 24px; font-weight: 700; }
+    .auth-logo p { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 4px; }
+    .auth-tabs {
+      display: flex; gap: 4px; background: rgba(255,255,255,0.06);
+      border-radius: 12px; padding: 4px; margin-bottom: 28px;
+    }
+    .auth-tab {
+      flex: 1; padding: 10px; text-align: center; border: none; background: transparent;
+      color: rgba(255,255,255,0.5); font-size: 14px; font-weight: 500;
+      border-radius: 8px; cursor: pointer; transition: all 0.3s;
+    }
+    .auth-tab.active { background: rgba(255,255,255,0.12); color: #fff; }
+    .auth-input {
+      width: 100%; padding: 14px 16px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px; color: #fff; font-size: 15px;
+      outline: none; transition: all 0.3s;
+    }
+    .auth-input::placeholder { color: rgba(255,255,255,0.3); }
+    .auth-input:focus {
+      border-color: rgba(99,102,241,0.6);
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+    .auth-input-group { margin-bottom: 16px; }
+    .auth-input-group label {
+      display: block; color: rgba(255,255,255,0.6);
+      font-size: 13px; font-weight: 500; margin-bottom: 6px;
+    }
+    .auth-btn {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+      transition: all 0.3s; margin-top: 8px;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff; box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+    }
+    .auth-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99,102,241,0.4); }
+    .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .role-select { display: flex; gap: 8px; margin-bottom: 16px; }
+    .role-option {
+      flex: 1; padding: 10px 12px; text-align: center;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; color: rgba(255,255,255,0.5);
+      cursor: pointer; transition: all 0.3s; font-size: 14px; font-weight: 500;
+    }
+    .role-option.selected { background: rgba(99,102,241,0.2); border-color: #6366f1; color: #fff; }
+
+    /* App Shell */
+    .app-shell { display: none; min-height: 100vh; }
+    .app-header {
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+      padding: 0 24px; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .app-header-left { display: flex; align-items: center; gap: 12px; }
+    .app-header-left .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #fff;
+    }
+    .app-header-left h2 {
+      font-size: 18px; font-weight: 700;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .app-header-right { display: flex; align-items: center; gap: 16px; }
+    .user-badge {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 14px 6px 6px;
+      background: rgba(99,102,241,0.08);
+      border-radius: 30px; font-size: 14px; font-weight: 500; color: #4f46e5;
+    }
+    .user-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 600;
+    }
+    .user-role-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 20px;
+      background: rgba(99,102,241,0.12); color: #6366f1; font-weight: 500;
+    }
+    .logout-btn {
+      padding: 8px 16px; border: none; border-radius: 8px;
+      background: transparent; color: #64748b; cursor: pointer;
+      font-size: 13px; font-weight: 500; transition: all 0.2s;
+    }
+    .logout-btn:hover { background: #f1f5f9; color: #ef4444; }
+
+    /* Tabs */
+    .app-tabs {
+      display: flex; gap: 4px; padding: 12px 24px 0;
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      overflow-x: auto;
+    }
+    .app-tab {
+      padding: 12px 20px; border: none; background: transparent;
+      font-size: 14px; font-weight: 500; color: #64748b;
+      cursor: pointer; border-radius: 10px 10px 0 0;
+      transition: all 0.25s; white-space: nowrap; position: relative;
+    }
+    .app-tab:hover { color: #4f46e5; background: rgba(99,102,241,0.05); }
+    .app-tab.active { color: #4f46e5; background: #fff; box-shadow: 0 -2px 8px rgba(99,102,241,0.08); }
+    .app-tab.active::after {
+      content: ''; position: absolute; bottom: -1px; left: 20%; right: 20%;
+      height: 3px; background: #4f46e5; border-radius: 3px 3px 0 0;
+    }
+    .app-tab-count {
+      display: inline-block; font-size: 11px; padding: 1px 7px;
+      border-radius: 20px; background: rgba(99,102,241,0.12);
+      color: #6366f1; margin-left: 6px; font-weight: 600;
+    }
+
+    /* Main */
+    .app-main { max-width: 960px; margin: 0 auto; padding: 24px; }
+    .tab-panel { display: none; animation: panelIn 0.35s ease-out; }
+    .tab-panel.active { display: block; }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Card */
+    .card {
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+      padding: 24px; margin-bottom: 20px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .card-header h3 { font-size: 16px; font-weight: 600; color: #1e293b; }
+    .card-header .badge {
+      font-size: 12px; padding: 3px 10px; border-radius: 20px;
+      background: rgba(99,102,241,0.08); color: #6366f1; font-weight: 500;
+    }
+
+    /* Welcome */
+    .welcome-banner {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed, #a855f7);
+      border-radius: 20px; padding: 32px 36px; margin-bottom: 24px;
+      color: #fff; position: relative; overflow: hidden;
+    }
+    .welcome-banner::before {
+      content: ''; position: absolute;
+      width: 300px; height: 300px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 50%; top: -100px; right: -50px;
+    }
+    .welcome-banner::after {
+      content: ''; position: absolute;
+      width: 200px; height: 200px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 50%; bottom: -60px; left: -40px;
+    }
+    .welcome-banner h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; position: relative; }
+    .welcome-banner p { font-size: 14px; opacity: 0.85; position: relative; }
+    .welcome-banner .ai-msg {
+      margin-top: 12px; padding: 12px 16px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 12px; font-size: 14px; line-height: 1.6;
+      position: relative;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; margin-bottom: 24px;
+    }
+    .quick-action {
+      display: flex; align-items: center; gap: 14px;
+      padding: 18px 20px; background: #fff; border-radius: 14px;
+      border: 1px solid rgba(0,0,0,0.04);
+      cursor: pointer; transition: all 0.25s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .quick-action:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(99,102,241,0.12);
+      border-color: rgba(99,102,241,0.2);
+    }
+    .quick-action .qa-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .quick-action .qa-icon.purple { background: rgba(99,102,241,0.1); }
+    .quick-action .qa-icon.green { background: rgba(16,185,129,0.1); }
+    .quick-action .qa-icon.amber { background: rgba(245,158,11,0.1); }
+    .quick-action .qa-icon.cyan { background: rgba(6,182,212,0.1); }
+    .quick-action .qa-text h4 { font-size: 14px; font-weight: 600; color: #1e293b; }
+    .quick-action .qa-text p { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 18px; border: none; border-radius: 10px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; line-height: 1.4;
+    }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-success { background: #10b981; color: #fff; }
+    .btn-success:hover { background: #059669; }
+    .btn-warning { background: #f59e0b; color: #fff; }
+    .btn-warning:hover { background: #d97706; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-outline { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
+    .btn-outline:hover { background: #f8fafc; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+    .btn-lg { padding: 12px 24px; font-size: 15px; border-radius: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Upload */
+    .upload-zone {
+      border: 2px dashed #e2e8f0; border-radius: 16px;
+      padding: 32px 24px; text-align: center;
+      transition: all 0.3s; cursor: pointer; background: #fafbfc;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: #6366f1; background: rgba(99,102,241,0.04);
+    }
+    .upload-zone .icon { font-size: 40px; display: block; margin-bottom: 12px; }
+    .upload-zone h4 { font-size: 16px; color: #1e293b; }
+    .upload-zone p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+    .upload-zone input[type="file"] { display: none; }
+    .file-info {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; background: #f8fafc; border-radius: 10px;
+      margin-top: 12px; font-size: 13px;
+    }
+
+    /* Notes */
+    .note-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 18px; border-radius: 12px;
+      border: 1px solid #f1f5f9; margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    .note-item:hover { border-color: #e2e8f0; background: #fafbfc; }
+    .note-item .note-info {
+      display: flex; align-items: center; gap: 14px; min-width: 0;
+    }
+    .note-item .note-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .note-item .note-icon.pdf { background: rgba(239,68,68,0.1); }
+    .note-item .note-icon.doc { background: rgba(37,99,235,0.1); }
+    .note-item .note-icon.txt { background: rgba(100,116,139,0.1); }
+    .note-item .note-icon.other { background: rgba(245,158,11,0.1); }
+    .note-item .note-name { font-size: 14px; font-weight: 500; color: #1e293b; }
+    .note-item .note-meta { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .note-item .note-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .empty-state {
+      text-align: center; padding: 40px 20px; color: #94a3b8;
+    }
+    .empty-state .icon { font-size: 48px; display: block; margin-bottom: 12px; }
+    .empty-state h4 { font-size: 16px; color: #64748b; }
+
+    /* AI Content */
+    .ai-content {
+      padding: 16px; background: #f8fafc; border-radius: 12px;
+      font-size: 14px; line-height: 1.7; color: #334155;
+      margin-top: 12px; white-space: pre-wrap; word-break: break-word;
+    }
+
+    /* Quiz */
+    .quiz-container { margin-top: 16px; }
+    .quiz-question {
+      padding: 20px; border: 1px solid #e2e8f0; border-radius: 14px;
+      margin-bottom: 16px;
+    }
+    .quiz-question .q-title {
+      font-weight: 600; font-size: 15px; color: #1e293b; margin-bottom: 12px;
+      display: flex; gap: 8px;
+    }
+    .quiz-question .q-number {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: rgba(99,102,241,0.1); color: #4f46e5;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .quiz-option {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 10px;
+      margin-bottom: 6px; cursor: pointer; transition: all 0.2s;
+      font-size: 14px; color: #475569;
+    }
+    .quiz-option:hover { border-color: #a5b4fc; background: rgba(99,102,241,0.04); }
+    .quiz-option.selected {
+      border-color: #6366f1; background: rgba(99,102,241,0.06); color: #4f46e5;
+    }
+    .quiz-option .radio {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid #cbd5e1; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .quiz-option.selected .radio {
+      border-color: #6366f1; background: #6366f1;
+    }
+    .quiz-option.selected .radio::after {
+      content: '✓'; color: #fff; font-size: 11px; font-weight: 700;
+    }
+    .quiz-option.correct {
+      border-color: #10b981; background: rgba(16,185,129,0.06);
+    }
+    .quiz-option.correct .radio {
+      border-color: #10b981; background: #10b981;
+    }
+    .quiz-option.correct .radio::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
+    .quiz-option.wrong {
+      border-color: #ef4444; background: rgba(239,68,68,0.06);
+    }
+    .quiz-option.wrong .radio {
+      border-color: #ef4444; background: #ef4444;
+    }
+    .quiz-option.wrong .radio::after { content: '✗'; color: #fff; font-size: 11px; font-weight: 700; }
+    .quiz-analysis {
+      margin-top: 10px; padding: 12px 16px;
+      background: #fffbeb; border: 1px solid #fde68a;
+      border-radius: 10px; font-size: 13px; color: #92400e; line-height: 1.6;
+      display: none;
+    }
+    .quiz-analysis.show { display: block; animation: panelIn 0.3s ease-out; }
+    .quiz-result {
+      text-align: center; padding: 24px;
+      background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+      border-radius: 14px; margin-bottom: 16px;
+    }
+    .quiz-result .score { font-size: 48px; font-weight: 800; color: #10b981; }
+
+    /* Summary */
+    .summary-content {
+      padding: 20px; background: #f8fafc; border-radius: 14px;
+      line-height: 1.8; font-size: 14px;
+    }
+    .summary-content h1, .summary-content h2, .summary-content h3 {
+      color: #1e293b; margin-top: 16px; margin-bottom: 8px;
+    }
+    .summary-content h1 { font-size: 18px; }
+    .summary-content h2 { font-size: 16px; }
+    .summary-content h3 { font-size: 15px; }
+    .summary-content ul, .summary-content ol { padding-left: 20px; }
+    .summary-content code {
+      background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 13px;
+    }
+    .summary-content pre {
+      background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 10px;
+      overflow-x: auto; font-size: 13px; margin: 12px 0;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px); z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; animation: fadeIn 0.2s;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal {
+      background: #fff; border-radius: 20px; padding: 28px;
+      width: 100%; max-width: 520px; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.2);
+      animation: modalIn 0.3s ease-out;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+    .modal-close {
+      float: right; border: none; background: transparent;
+      font-size: 24px; color: #94a3b8; cursor: pointer; line-height: 1; padding: 4px;
+    }
+    .modal-close:hover { color: #475569; }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .auth-card { padding: 28px 20px; }
+      .app-header { padding: 0 16px; }
+      .app-tabs { padding: 8px 16px 0; gap: 2px; }
+      .app-tab { padding: 10px 14px; font-size: 13px; }
+      .app-main { padding: 16px; }
+      .welcome-banner { padding: 24px 20px; }
+      .quick-actions { grid-template-columns: 1fr 1fr; }
+      .note-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .note-item .note-actions { width: 100%; justify-content: flex-end; }
+      .user-badge .user-name { display: none; }
+    }
+
+    /* Utilities */
+    .flex-between { display: flex; align-items: center; justify-content: space-between; }
+    .mt-3 { margin-top: 12px; }
+    .mb-3 { margin-bottom: 12px; }
+    .text-sm { font-size: 13px; }
+    .text-muted { color: #94a3b8; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .w-full { width: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- Auth -->
+<div id="authPage" class="auth-container">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="icon">🧠</span>
+      <h1>SmartStudy</h1>
+      <p>AI 智能伴学系统</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">登录</button>
+      <button class="auth-tab" data-tab="register">注册</button>
+    </div>
+    <!-- Login -->
+    <div id="loginForm" class="auth-form">
+      <div class="auth-input-group">
+        <label>用户名</label>
+        <input type="text" id="loginUsername" class="auth-input" placeholder="请输入用户名" autocomplete="username">
+      </div>
+      <div class="auth-input-group">
+        <label>密码</label>
+        <input type="password" id="loginPassword" class="auth-input" placeholder="请输入密码" autocomplete="current-password">
+      </div>
+      <button id="loginBtn" class="auth-btn" onclick="handleLogin()">安全登录</button>
+      <div id="loginError" class="auth-error" style="color:#fca5a5;font-size:13px;text-align:center;margin-top:12px;display:none;"></div>
+    </div>
+    <!-- Register -->
+    <div id="registerForm" class="auth-form" style="display:none;">
+      <div class="auth-input-group">
+        <label>用户名</label>
+        <input type="text" id="regUsername" class="auth-input" placeholder="请设置用户名">
+      </div>
+      <div class="auth-input-group">
+        <label>密码</label>
+        <input type="password" id="regPassword" class="auth-input" placeholder="请设置密码">
+      </div>
+      <div class="auth-input-group">
+        <label>身份角色</label>
+        <div class="role-select">
+          <div class="role-option selected" data-role="学生" onclick="selectRole(this)">🎓 学生</div>
+          <div class="role-option" data-role="教师" onclick="selectRole(this)">👨‍🏫 教师</div>
+          <div class="role-option" data-role="职场新人" onclick="selectRole(this)">💼 职场新人</div>
+        </div>
+      </div>
+      <button id="registerBtn" class="auth-btn" onclick="handleRegister()">创建账号</button>
+      <div id="regError" class="auth-error" style="color:#fca5a5;font-size:13px;text-align:center;margin-top:12px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="appShell" class="app-shell">
+  <header class="app-header">
+    <div class="app-header-left">
+      <div class="logo">🧠</div>
+      <h2>SmartStudy</h2>
+    </div>
+    <div class="app-header-right">
+      <div class="user-badge">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <span class="user-name" id="userName">用户</span>
+        <span class="user-role-badge" id="userRole">学生</span>
+      </div>
+      <button class="logout-btn" onclick="handleLogout()">退出</button>
+    </div>
+  </header>
+
+  <nav class="app-tabs" id="appTabs">
+    <button class="app-tab active" data-panel="home">🏠 首页</button>
+    <button class="app-tab" data-panel="notes">📚 我的笔记 <span class="app-tab-count" id="noteCount">0</span></button>
+    <button class="app-tab" data-panel="quiz">✍️ AI 测验</button>
+  </nav>
+
+  <main class="app-main">
+    <!-- Home -->
+    <section id="panelHome" class="tab-panel active">
+      <div class="welcome-banner" id="welcomeBanner">
+        <h2 id="welcomeTitle">欢迎回来！</h2>
+        <p id="welcomeDesc">选择下方功能开始你的学习之旅</p>
+        <div class="ai-msg" id="aiWelcomeMsg">AI 正在为你准备欢迎语...</div>
+      </div>
+      <div class="quick-actions">
+        <div class="quick-action" onclick="switchTab('notes')">
+          <div class="qa-icon green">📤</div>
+          <div class="qa-text"><h4>上传笔记</h4><p>支持 PDF / Word / 文本</p></div>
+        </div>
+        <div class="quick-action" onclick="handleQuickChallenge()">
+          <div class="qa-icon amber">🎯</div>
+          <div class="qa-text"><h4>今日挑战</h4><p>AI 随机出题</p></div>
+        </div>
+        <div class="quick-action" onclick="switchTab('notes'); listNotes()">
+          <div class="qa-icon cyan">📖</div>
+          <div class="qa-text"><h4>我的笔记</h4><p>管理学习笔记</p></div>
+        </div>
+        <div class="quick-action" onclick="switchTab('quiz'); generateQuizFromNotes()">
+          <div class="qa-icon purple">📝</div>
+          <div class="qa-text"><h4>AI 测验</h4><p>笔记生成练习题</p></div>
+        </div>
+      </div>
+      <div class="card" id="challengeResult" style="display:none;">
+        <div class="card-header"><h3>🎯 今日挑战</h3><span class="badge">AI 生成</span></div>
+        <div class="ai-content" id="challengeContent"></div>
+      </div>
+    </section>
+
+    <!-- Notes -->
+    <section id="panelNotes" class="tab-panel">
+      <div class="card">
+        <div class="card-header"><h3>📤 上传学习笔记</h3></div>
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <span class="icon">📁</span>
+          <h4>点击选择文件或拖拽到此处</h4>
+          <p>支持 PDF、Word、文本文件</p>
+          <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt" onchange="onFileSelected(event)">
+          <div id="fileInfo" class="file-info" style="display:none;">
+            <span class="name" id="fileName"></span>
+            <span class="size" id="fileSize"></span>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg w-full mt-3" id="uploadBtn" onclick="handleUpload()" disabled>📤 上传笔记</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>📚 我的笔记</h3><button class="btn btn-sm btn-outline" onclick="listNotes()">🔄 刷新</button></div>
+        <div id="notesList"><div class="empty-state"><span class="icon">📭</span><h4>暂无笔记</h4><p class="text-sm text-muted">上传你的第一份笔记吧</p></div></div>
+      </div>
+    </section>
+
+    <!-- Quiz -->
+    <section id="panelQuiz" class="tab-panel">
+      <div class="card">
+        <div class="card-header"><h3>✍️ AI 智能测验</h3><span class="badge">基于笔记生成</span></div>
+        <p class="text-sm text-muted mb-3">从笔记中自动生成选择题，检验学习成果。</p>
+        <button class="btn btn-primary" onclick="generateQuizFromNotes()">🔄 生成新测验</button>
+        <div id="quizArea"><div class="empty-state"><span class="icon">📝</span><h4>还没有测验</h4><p class="text-sm text-muted">点击上方按钮生成测验题</p></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Modal -->
+<div id="modalOverlay" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+  <div class="modal" id="modalContent" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const state = { user: null, notes: [], quizData: null, quizAnswers: {}, quizSubmitted: false };
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+// Auth tabs
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('loginForm').style.display = tab.dataset.tab === 'login' ? 'block' : 'none';
+    document.getElementById('registerForm').style.display = tab.dataset.tab === 'login' ? 'none' : 'block';
+  });
+});
+
+function selectRole(el) {
+  document.querySelectorAll('.role-option').forEach(r => r.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function handleLogin() {
+  const u = document.getElementById('loginUsername').value.trim();
+  const p = document.getElementById('loginPassword').value.trim();
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('loginError');
+  if (!u || !p) { err.textContent = '请输入用户名和密码'; err.style.display = 'block'; return; }
+  err.style.display = 'none'; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>登录中...';
+  try {
+    const r = await fetch(`/login?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`);
+    const t = await r.text();
+    if (t.startsWith('SUCCESS')) {
+      const parts = t.split(':');
+      state.user = { id: parts[1], name: parts[2], role: parts[3] };
+      showToast(`欢迎回来，${state.user.name}！`, 'success');
+      enterApp();
+    } else {
+      err.textContent = t.replace('FAIL:', ''); err.style.display = 'block';
+      showToast(t.replace('FAIL:', ''), 'error');
+    }
+  } catch(e) { err.textContent = '网络连接失败'; err.style.display = 'block'; showToast('网络连接失败', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '安全登录'; }
+}
+
+async function handleRegister() {
+  const u = document.getElementById('regUsername').value.trim();
+  const p = document.getElementById('regPassword').value.trim();
+  const role = document.querySelector('.role-option.selected')?.dataset.role || '学生';
+  const btn = document.getElementById('registerBtn');
+  const err = document.getElementById('regError');
+  if (!u || !p) { err.textContent = '用户名和密码不能为空'; err.style.display = 'block'; return; }
+  err.style.display = 'none'; btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>注册中...';
+  try {
+    const r = await fetch(`/register?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&role=${encodeURIComponent(role)}`, { method: 'POST' });
+    const t = await r.text();
+    if (t.startsWith('SUCCESS')) {
+      showToast('注册成功，请登录！', 'success');
+      document.querySelector('.auth-tab[data-tab="login"]').click();
+      document.getElementById('loginUsername').value = u;
+    } else { err.textContent = t.replace('FAIL:', ''); err.style.display = 'block'; showToast(t.replace('FAIL:', ''), 'error'); }
+  } catch(e) { err.textContent = '网络连接失败'; err.style.display = 'block'; showToast('网络连接失败', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '创建账号'; }
+}
+
+function handleLogout() {
+  state.user = null; state.notes = []; state.quizData = null; state.quizAnswers = {}; state.quizSubmitted = false;
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('authPage').style.display = 'flex';
+  document.getElementById('loginPassword').value = '';
+  showToast('已安全退出', 'info');
+}
+
+async function enterApp() {
+  document.getElementById('authPage').style.display = 'none';
+  document.getElementById('appShell').style.display = 'block';
+  document.getElementById('userAvatar').textContent = state.user.name.charAt(0);
+  document.getElementById('userName').textContent = state.user.name;
+  document.getElementById('userRole').textContent = state.user.role;
+  document.getElementById('welcomeTitle').textContent = `欢迎回来，${state.user.name}！👋`;
+  document.getElementById('welcomeDesc').textContent = `今天也要加油哦，${state.user.role}！`;
+  try {
+    const r = await fetch(`/smartLogin?id=${state.user.id}`);
+    document.getElementById('aiWelcomeMsg').textContent = `💬 ${await r.text()}`;
+  } catch { document.getElementById('aiWelcomeMsg').textContent = `💬 欢迎你，${state.user.name}！`; }
+  listNotes();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const tab = document.querySelector(`.app-tab[data-panel="${name}"]`);
+  if (tab) tab.classList.add('active');
+  const panel = document.getElementById(`panel${name.charAt(0).toUpperCase() + name.slice(1)}`);
+  if (panel) panel.classList.add('active');
+}
+document.querySelectorAll('.app-tab').forEach(tab => {
+  tab.addEventListener('click', () => switchTab(tab.dataset.panel));
+});
+
+async function handleQuickChallenge() {
+  const r = document.getElementById('challengeResult');
+  const c = document.getElementById('challengeContent');
+  r.style.display = 'block';
+  c.innerHTML = '<div class="loading-overlay"><span class="spinner"></span>AI 正在出题...</div>';
+  switchTab('home');
+  try {
+    const res = await fetch(`/getExercise?id=${state.user.id}`);
+    c.textContent = await res.text();
+    showToast('挑战已生成！', 'success');
+  } catch { c.textContent = '出题失败，请检查网络'; showToast('出题失败', 'error'); }
+}
+
+// Notes
+let selectedFile = null;
+function onFileSelected(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  selectedFile = f;
+  document.getElementById('fileName').textContent = f.name;
+  document.getElementById('fileSize').textContent = f.size < 1024 ? f.size + ' B' : (f.size/1024).toFixed(1) + ' KB';
+  document.getElementById('fileInfo').style.display = 'flex';
+  document.getElementById('uploadBtn').disabled = false;
+}
+async function handleUpload() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>上传中...';
+  try {
+    const fd = new FormData();
+    fd.append('userId', state.user.id);
+    fd.append('file', selectedFile);
+    const r = await fetch('/uploadNote', { method: 'POST', body: fd });
+    const t = await r.text();
+    if (t.startsWith('SUCCESS')) {
+      showToast('笔记上传成功！✅', 'success');
+      document.getElementById('fileInfo').style.display = 'none';
+      document.getElementById('fileInput').value = ''; selectedFile = null;
+      document.getElementById('uploadBtn').disabled = true;
+      listNotes();
+    } else { showToast(t, 'error'); }
+  } catch { showToast('上传失败：网络错误', 'error'); }
+  finally { btn.disabled = false; btn.innerHTML = '📤 上传笔记'; }
+}
+async function listNotes() {
+  const c = document.getElementById('notesList');
+  c.innerHTML = '<div class="loading-overlay"><span class="spinner"></span>加载笔记列表...</div>';
+  try {
+    const r = await fetch(`/listNotes?userId=${state.user.id}`);
+    state.notes = await r.json() || [];
+    document.getElementById('noteCount').textContent = state.notes.length;
+    if (!state.notes.length) {
+      c.innerHTML = '<div class="empty-state"><span class="icon">📭</span><h4>暂无笔记</h4><p class="text-sm text-muted">上传你的第一份笔记吧</p></div>';
+      return;
+    }
+    c.innerHTML = state.notes.map(n => {
+      const ext = (n.fileName||'').split('.').pop().toLowerCase();
+      const icons = {pdf:'📕',doc:'📘',docx:'📘',txt:'📄',md:'📄'};
+      return `<div class="note-item"><div class="note-info"><div class="note-icon" style="background:rgba(99,102,241,0.1)">${icons[ext]||'📎'}</div><div style="min-width:0"><div class="note-name truncate">${n.fileName}</div><div class="note-meta">ID: ${n.id}</div></div></div><div class="note-actions"><button class="btn btn-sm btn-primary" onclick="showModalQuiz(${n.id})">📝 测验</button><button class="btn btn-sm btn-success" onclick="showModalSummary(${n.id})">📋 摘要</button><button class="btn btn-sm btn-danger" onclick="deleteNote(${n.id})">🗑️</button></div></div>`;
+    }).join('');
+  } catch { c.innerHTML = '<div class="empty-state"><span class="icon">⚠️</span><h4>加载失败</h4></div>'; }
+}
+async function deleteNote(id) {
+  if (!confirm('确定删除这份笔记？')) return;
+  try {
+    const r = await fetch(`/deleteNote?noteId=${id}`);
+    if ((await r.text()).startsWith('SUCCESS')) { showToast('已删除', 'success'); listNotes(); }
+    else showToast('删除失败', 'error');
+  } catch { showToast('删除失败', 'error'); }
+}
+
+// Quiz
+async function generateQuizFromNotes() {
+  const area = document.getElementById('quizArea');
+  if (!state.notes || !state.notes.length) { showToast('请先上传笔记！', 'warning'); switchTab('notes'); return; }
+  area.innerHTML = '<div class="loading-overlay"><span class="spinner"></span>AI 正在生成测验...</div>';
+  switchTab('quiz');
+  for (const note of state.notes) {
+    try {
+      const r = await fetch(`/generateNoteQuiz?noteId=${note.id}`);
+      const t = await r.text();
+      if (t.startsWith('❌')) continue;
+      let qd;
+      try { qd = JSON.parse(t); } catch { try { qd = JSON.parse(t.replace(/```json|```/g,'').trim()); } catch { continue; } }
+      if (Array.isArray(qd) && qd.length) {
+        state.quizData = qd; state.quizAnswers = {}; state.quizSubmitted = false;
+        renderQuiz();
+        showToast(`基于「${note.fileName}」生成测验！`, 'success');
+        return;
+      }
+    } catch { continue; }
+  }
+  area.innerHTML = '<div class="empty-state"><span class="icon">😅</span><h4>无法生成测验</h4><p class="text-sm text-muted">笔记内容不足（需50字以上）</p></div>';
+  showToast('笔记内容不足', 'warning');
+}
+function renderQuiz() {
+  const area = document.getElementById('quizArea');
+  if (!state.quizData || !state.quizData.length) { area.innerHTML = '<div class="empty-state"><span class="icon">📝</span><h4>暂无数据</h4></div>'; return; }
+  let html = '<div class="quiz-container">';
+  if (state.quizSubmitted) {
+    const correct = state.quizData.filter((q,i) => state.quizAnswers[i] === q.correctAnswer).length;
+    html += `<div class="quiz-result"><div class="score">${correct}/${state.quizData.length}</div><div class="label">答对 ${correct} 题，共 ${state.quizData.length} 题（${Math.round(correct/state.quizData.length*100)}%）</div></div>`;
+  }
+  state.quizData.forEach((q,idx) => {
+    const sel = state.quizAnswers[idx];
+    html += `<div class="quiz-question"><div class="q-title"><span class="q-number">${idx+1}</span><span>${q.question}</span></div>`;
+    q.options.forEach((opt,oi) => {
+      const l = String.fromCharCode(65+oi);
+      let cls = 'quiz-option';
+      if (state.quizSubmitted) { if (l===q.correctAnswer) cls+=' correct'; else if (l===sel&&l!==q.correctAnswer) cls+=' wrong'; }
+      else if (sel===l) cls+=' selected';
+      html += `<div class="${cls}" onclick="${state.quizSubmitted?'':`selectQuizOption(${idx},'${l}')`}"><span class="radio"></span><span>${opt}</span></div>`;
+    });
+    html += `<div class="quiz-analysis ${state.quizSubmitted&&sel!==q.correctAnswer?'show':''}"><strong>解析：</strong>${q.analysis||''}</div></div>`;
+  });
+  html += state.quizSubmitted
+    ? '<button class="btn btn-primary btn-lg w-full mt-3" onclick="generateQuizFromNotes()">🔄 重新测验</button>'
+    : '<button class="btn btn-success btn-lg w-full mt-3" onclick="submitQuiz()">📋 提交答案</button>';
+  html += '</div>';
+  area.innerHTML = html;
+}
+function selectQuizOption(idx, l) { if (state.quizSubmitted) return; state.quizAnswers[idx] = l; renderQuiz(); }
+function submitQuiz() {
+  const u = state.quizData.filter((q,i)=>!state.quizAnswers[i]);
+  if (u.length && !confirm(`还有 ${u.length} 道题未作答，确定提交吗？`)) return;
+  state.quizSubmitted = true; renderQuiz(); showToast('已完成批改！', 'success');
+}
+
+// Modal
+async function showModalQuiz(id) {
+  const o = document.getElementById('modalOverlay'), b = document.getElementById('modalBody');
+  o.style.display = 'flex'; b.innerHTML = '<div class="loading-overlay"><span class="spinner"></span>AI 生成中...</div>';
+  try {
+    const r = await fetch(`/generateNoteQuiz?noteId=${id}`);
+    const t = await r.text();
+    if (t.startsWith('❌')) { b.innerHTML = `<div class="empty-state"><span class="icon">😅</span><h4>${t}</h4></div>`; return; }
+    let qd; try { qd=JSON.parse(t); } catch { qd=JSON.parse(t.replace(/```json|```/g,'').trim()); }
+    if (!Array.isArray(qd)||!qd.length) { b.innerHTML='<div class="empty-state"><span class="icon">😅</span><h4>解析失败</h4></div>'; return; }
+    let html='<div class="quiz-container">';
+    qd.forEach((q,i)=>{
+      html+=`<div class="quiz-question"><div class="q-title"><span class="q-number">${i+1}</span><span>${q.question}</span></div>`;
+      q.options.forEach(o=>html+=`<div class="quiz-option" style="cursor:default"><span class="radio" style="background:transparent;border-color:#e2e8f0"></span><span>${o}</span></div>`);
+      html+=`<div class="quiz-analysis show" style="display:block"><strong>✅ 正确答案：${q.correctAnswer}</strong><br><strong>解析：</strong>${q.analysis||''}</div></div>`;
+    });
+    b.innerHTML=html+'</div>';
+  } catch { b.innerHTML='<div class="empty-state"><span class="icon">⚠️</span><h4>生成失败</h4></div>'; }
+}
+async function showModalSummary(id) {
+  const o=document.getElementById('modalOverlay'),b=document.getElementById('modalBody');
+  o.style.display='flex'; b.innerHTML='<div class="loading-overlay"><span class="spinner"></span>AI 生成摘要...</div>';
+  try {
+    const r=await fetch(`/generateSummary?noteId=${id}`);
+    const t=await r.text();
+    if(t.startsWith('❌')){b.innerHTML=`<div class="empty-state"><span class="icon">😅</span><h4>${t}</h4></div>`;return;}
+    b.innerHTML=`<h3 style="margin-bottom:12px">📋 AI 智能摘要</h3><div class="summary-content">${mdToHtml(t)}</div>`;
+  } catch { b.innerHTML='<div class="empty-state"><span class="icon">⚠️</span><h4>生成失败</h4></div>'; }
+}
+function closeModal(e) {
+  if(e&&!document.getElementById('modalContent').contains(e.target)){document.getElementById('modalOverlay').style.display='none';}
+  else if(!e) document.getElementById('modalOverlay').style.display='none';
+}
+function mdToHtml(md) {
+  if(!md)return'';
+  let h=md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  h=h.replace(/```(\w*)\n?([\s\S]*?)```/g,'<pre><code>$2</code></pre>');
+  h=h.replace(/`([^`]+)`/g,'<code>$1</code>');
+  h=h.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+  h=h.replace(/^- (.+)$/gm,'<li>$1</li>');
+  h=h.replace(/(<li>.*<\/li>\n?)+/g,'<ul>$&</ul>');
+  h='<p>'+h.replace(/\n\n/g,'</p><p>')+'</p>';
+  return h.replace(/<p>\s*<\/p>/g,'').replace(/\n/g,'<br>');
+}
+
+// Drag & Drop
+const uz=document.getElementById('uploadZone');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.classList.add('dragover');});
+uz.addEventListener('dragleave',e=>{e.preventDefault();uz.classList.remove('dragover');});
+uz.addEventListener('drop',e=>{
+  e.preventDefault();uz.classList.remove('dragover');
+  if(e.dataTransfer.files.length){document.getElementById('fileInput').files=e.dataTransfer.files;onFileSelected({target:{files:[e.dataTransfer.files[0]]}});}
+});
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('modalOverlay').style.display!=='none') document.getElementById('modalOverlay').style.display='none';
+  if(e.key==='Enter'&&document.getElementById('authPage').style.display!=='none'){
+    document.getElementById('loginForm').style.display!=='none'?handleLogin():handleRegister();
+  }
+});
+</script>
+</body>
+</html>

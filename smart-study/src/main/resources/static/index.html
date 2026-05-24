@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SmartStudy AI 智能伴学</title>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --bg: #f4f7f6; --warning: #ffc107; }
+        body { background: var(--bg); font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .app-container { background: white; width: 450px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: var(--primary); color: white; padding: 20px; text-align: center; font-weight: bold; font-size: 1.2rem; }
+        .content { padding: 20px; min-height: 300px; }
+        .input-group { margin-bottom: 15px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 10px; color: white;}
+        .btn-login { background: var(--primary); }
+        .btn-task { background: var(--success); display: none; margin-bottom: 10px; }
+
+        /* 这里是新加的上传区域样式 */
+        .upload-area { display: none; border: 2px dashed #ddd; padding: 20px; text-align: center; border-radius: 8px; margin-top: 15px; background: #fafafa; }
+        .btn-upload { background: var(--warning); color: #333; margin-top: 10px;}
+
+        .bubble { background: #f0f0f0; padding: 12px; border-radius: 10px; margin-top: 15px; font-size: 0.9rem; line-height: 1.5; color: #444; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="header">🌟 SmartStudy AI 助手</div>
+    <div class="content" id="mainContent">
+        <div id="loginForm">
+            <div class="input-group"><input type="text" id="username" placeholder="用户名 (张三)"></div>
+            <div class="input-group"><input type="password" id="password" placeholder="密码 (123456)"></div>
+            <button class="btn-login" onclick="doLogin()">安全登录</button>
+        </div>
+
+        <button id="taskBtn" class="btn-task" onclick="getTask()">🎯 生成今日挑战</button>
+
+        <div id="uploadArea" class="upload-area">
+            <p style="margin-top:0; color:#666; font-size:14px;">📁 上传学习笔记 (可传任意小文件测试)</p>
+            <input type="file" id="noteFile" style="margin-bottom: 10px; width:100%;">
+            <button class="btn-upload" onclick="uploadNote()">📤 确认上传</button>
+        </div>
+
+        <div id="chatArea"></div>
+    </div>
+</div>
+
+<script>
+    let userData = {};
+
+    // 登录逻辑
+    async function doLogin() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        const res = await fetch(`/login?username=${u}&password=${p}`);
+        const text = await res.text();
+
+        if (text.startsWith("SUCCESS")) {
+            const parts = text.split(":");
+            userData = { id: parts[1], name: parts[2], role: parts[3] };
+            document.getElementById('loginForm').style.display = 'none';
+
+            // 登录成功后，显示出题按钮和上传区域
+            document.getElementById('taskBtn').style.display = 'block';
+            document.getElementById('uploadArea').style.display = 'block';
+
+            showMsg(`欢迎回来，${userData.name}！请上传你的笔记，或者生成今日挑战。`);
+        } else {
+            alert("登录失败：账号或密码不正确");
+        }
+    }
+
+    // AI 出题逻辑
+    async function getTask() {
+        showMsg("🤖 AI 正在出题，请稍候...");
+        const res = await fetch(`/getExercise?id=${userData.id}`);
+        const task = await res.text();
+        showMsg(`<strong>今日挑战：</strong><br>${task.replace(/\n/g, '<br>')}`, "#fff3cd");
+    }
+
+    // --- 新增：处理文件上传到后端 ---
+    async function uploadNote() {
+        const fileInput = document.getElementById('noteFile');
+
+        // 检查用户是不是没选文件就瞎点
+        if (fileInput.files.length === 0) {
+            alert("请先选择一个文件！");
+            return;
+        }
+
+        const file = fileInput.files[0];
+
+        // 构造一个表单数据包，把用户 ID 和文件一起打包
+        const formData = new FormData();
+        formData.append("userId", userData.id);
+        formData.append("file", file);
+
+        showMsg(`⏳ 正在将文件搬运到服务器: ${file.name} ...`);
+
+        try {
+            // 发送 POST 请求给后端的 /uploadNote
+            const response = await fetch('/uploadNote', {
+                method: 'POST',
+                body: formData
+            });
+            const resultText = await response.text();
+
+            // 根据后端返回的结果显示不同颜色的气泡
+            if(resultText.startsWith("SUCCESS")) {
+                showMsg(`✅ <strong>${resultText}</strong>`, "#d4edda");
+            } else {
+                showMsg(`❌ <strong>${resultText}</strong>`, "#f8d7da");
+            }
+        } catch (e) {
+            showMsg(`❌ <strong>网络连接失败！</strong>`, "#f8d7da");
+        }
+    }
+
+    function showMsg(txt, bg="#f0f0f0") {
+        const area = document.getElementById('chatArea');
+        area.innerHTML = `<div class="bubble" style="background:${bg}">${txt}</div>`;
+    }
+</script>
+</body>
+</html>
