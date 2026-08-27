@@ -1,0 +1,11 @@
+# Local secrets and environment
+.env
+*.local.properties
+application-local.properties
+
+# IntelliJ IDEA
+.idea/
+
+# Uploaded files
+smart_study_uploads/
+D:/smart_study_uploads/
