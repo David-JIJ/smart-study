@@ -39,7 +39,7 @@ smart-study/
 ## 快速开始
 
 1. 准备 MySQL 数据库，创建 `smart_study_db`。
-2. 配置环境变量（不要写进仓库）：
+2. 配置环境变量：
 
 ```bash
 export DEEPSEEK_API_KEY=你的DeepSeek密钥
@@ -71,16 +71,3 @@ web: ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
 
 - 上传目录通过 `app.upload-dir` 配置，生产环境建议放在数据盘。
 
-## 演示
-
-- 在线地址：（这里填你的云服务器地址）
-- 截图：（放 1-2 张页面截图，展示登录、笔记上传、测验功能）
-
-## 安全说明
-
-- API Key、数据库密码等敏感信息必须通过环境变量注入，禁止提交到仓库。
-- 生产环境请限制跨域来源，避免 `@CrossOrigin` 全开放。
-
-## License
-
-MIT（按需修改）
